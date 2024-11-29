@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Space Game</title>
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        canvas {
+            border: 1px solid white;
+            margin-top: 20px;
+        }
+        #game-ui {
+            width: 800px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #word-input {
+            padding: 5px;
+            font-size: 16px;
+            width: 200px;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-size: 36px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-ui">
+        <div>Lives: <span id="lives">5</span></div>
+        <div>Current Word: <span id="current-word">start</span></div>
+        <input type="text" id="word-input" placeholder="Enter a word...">
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="gameOver" class="game-over">
+        GAME OVER
+        <br>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        const FPS = 60;
+
+        // Game constants
+        const ASTEROID_SPAWN_RATE = 2;
+        const ANGLE_CHANGE_MULTIPLIER = 5;
+
+        class Ship {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.speed = 3;
+                this.angle = 0;
+                this.size = 20;
+                this.lives = 5;
+            }
+
+            move() {
+                this.x += Math.cos(this.angle * Math.PI / 180) * this.speed;
+                this.y -= Math.sin(this.angle * Math.PI / 180) * this.speed;
+                this.x = ((this.x % WIDTH) + WIDTH) % WIDTH;
+                this.y = ((this.y % HEIGHT) + HEIGHT) % HEIGHT;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.strokeStyle = 'white';
+                ctx.fillStyle = 'white';
+                
+                const points = [
+                    {
+                        x: this.x + this.size * Math.cos(this.angle * Math.PI / 180),
+                        y: this.y - this.size * Math.sin(this.angle * Math.PI / 180)
+                    },
+                    {
+                        x: this.x + this.size * Math.cos((this.angle + 140) * Math.PI / 180),
+                        y: this.y - this.size * Math.sin((this.angle + 140) * Math.PI / 180)
+                    },
+                    {
+                        x: this.x + this.size * Math.cos((this.angle - 140) * Math.PI / 180),
+                        y: this.y - this.size * Math.sin((this.angle - 140) * Math.PI / 180)
+                    }
+                ];
+
+                ctx.moveTo(points[0].x, points[0].y);
+                ctx.lineTo(points[1].x, points[1].y);
+                ctx.lineTo(points[2].x, points[2].y);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            checkCollision(asteroid) {
+                const distance = Math.sqrt(
+                    Math.pow(this.x - asteroid.x, 2) + 
+                    Math.pow(this.y - asteroid.y, 2)
+                );
+                return distance < (this.size + asteroid.size);
+            }
+        }
+
+        class Asteroid {
+            constructor() {
+                const side = ['left', 'right', 'top', 'bottom'][Math.floor(Math.random() * 4)];
+                
+                if (side === 'left') {
+                    this.x = -20;
+                    this.y = Math.random() * HEIGHT;
+                    this.dx = Math.random() * 2 + 1;
+                    this.dy = Math.random() * 4 - 2;
+                } else if (side === 'right') {
+                    this.x = WIDTH + 20;
+                    this.y = Math.random() * HEIGHT;
+                    this.dx = -(Math.random() * 2 + 1);
+                    this.dy = Math.random() * 4 - 2;
+                } else if (side === 'top') {
+                    this.x = Math.random() * WIDTH;
+                    this.y = -20;
+                    this.dx = Math.random() * 4 - 2;
+                    this.dy = Math.random() * 2 + 1;
+                } else {
+                    this.x = Math.random() * WIDTH;
+                    this.y = HEIGHT + 20;
+                    this.dx = Math.random() * 4 - 2;
+                    this.dy = -(Math.random() * 2 + 1);
+                }
+                
+                this.size = Math.random() * 20 + 10;
+            }
+
+            move() {
+                this.x += this.dx;
+                this.y += this.dy;
+            }
+
+            isOffscreen() {
+                return (
+                    this.x < -50 || 
+                    this.x > WIDTH + 50 || 
+                    this.y < -50 || 
+                    this.y > HEIGHT + 50
+                );
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.strokeStyle = 'white';
+                ctx.fillStyle = 'white';
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        const ship = new Ship(WIDTH/2, HEIGHT/2);
+        let asteroids = [];
+        let asteroidSpawnTimer = 0;
+        let gameOver = false;
+
+        function getAngleBetweenWords(word1, word2) {
+            // placeholder till i make a lambda function or something to cal the semantic difference
+            return (Math.abs(word1.length - word2.length) * 45) % 360;
+        }
+
+        const wordInput = document.getElementById('word-input');
+        const currentWordSpan = document.getElementById('current-word');
+        const livesSpan = document.getElementById('lives');
+        
+        wordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !gameOver) {
+                const newWord = wordInput.value.trim();
+                if (newWord) {
+                    const angle = getAngleBetweenWords(
+                        currentWordSpan.textContent, 
+                        newWord
+                    );
+                    ship.angle = angle;
+                    currentWordSpan.textContent = newWord;
+                    wordInput.value = '';
+                }
+            }
+        });
+
+        function gameLoop() {
+            if (!gameOver) {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+                ship.move();
+                asteroidSpawnTimer++;
+                if (asteroidSpawnTimer >= FPS / ASTEROID_SPAWN_RATE) {
+                    asteroids.push(new Asteroid());
+                    asteroidSpawnTimer = 0;
+                }
+                asteroids = asteroids.filter(asteroid => {
+                    asteroid.move();
+                    if (ship.checkCollision(asteroid)) {
+                        ship.lives--;
+                        livesSpan.textContent = ship.lives;
+                        if (ship.lives <= 0) {
+                            gameOver = true;
+                            document.getElementById('gameOver').style.display = 'block';
+                        }
+                        return false;
+                    }
+                    return !asteroid.isOffscreen();
+                });
+                ship.draw();
+                asteroids.forEach(asteroid => asteroid.draw());
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+</body>
+</html>

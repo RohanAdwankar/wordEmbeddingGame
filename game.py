@@ -17,6 +17,7 @@ RED = (255, 0, 0)
 
 # Game Design Constants
 ASTEROID_SPAWN_RATE_PERSECOND = 2
+ANGLE_CHANGE_MULTIPLIER = 5
 
 print("Loading word vectors... (this may take a minute)")
 word_vectors = KeyedVectors.load_word2vec_format('GoogleNews-vectors-negative300.bin.gz', binary=True)
@@ -94,8 +95,8 @@ class Asteroid:
 def get_angle_between_words(word1, word2):
     try:
         similarity = word_vectors.similarity(word1.lower(), word2.lower())
-        angle = np.arccos(np.clip(similarity, -1.0, 1.0)) * (180/np.pi)
-        return angle
+        angle = np.arccos(np.clip(similarity, -1.0, 1.0)) * (180/np.pi) * ANGLE_CHANGE_MULTIPLIER
+        return angle%360
     except KeyError:
         return None 
 
