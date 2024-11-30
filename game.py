@@ -2,7 +2,6 @@ import pygame
 import numpy as np
 import random
 from gensim.models import KeyedVectors
-import sys
 from math import cos, sin, radians
 
 pygame.init()

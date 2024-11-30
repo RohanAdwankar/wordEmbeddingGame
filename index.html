@@ -5,55 +5,132 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Space Game</title>
     <style>
+        @font-face {
+            font-family: 'Blocky';
+            font-style: normal;
+            font-weight: 400;
+            src: local('Courier New Bold'), local('CourierNewBold');
+        }
+        
         body {
             margin: 0;
-            background: black;
+            background: #000;
             display: flex;
             flex-direction: column;
             align-items: center;
-            font-family: Arial, sans-serif;
-            color: white;
+            font-family: 'Blocky', 'Courier New', monospace;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #0f0;
+            line-height: 1.5;
+            overflow: hidden;
         }
+
         canvas {
-            border: 1px solid white;
+            border: 2px solid #0f0;
             margin-top: 20px;
+            box-shadow: 0 0 10px #0f0;
         }
+
         #game-ui {
             width: 800px;
-            padding: 10px;
+            padding: 20px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
+            gap: 10px;
+            text-shadow: 2px 2px 0px #000;
         }
+
         #word-input {
-            padding: 5px;
+            padding: 10px;
             font-size: 16px;
-            width: 200px;
+            width: 100%;
+            background: #000;
+            border: 2px solid #0f0;
+            color: #0f0;
+            font-family: 'Blocky', 'Courier New', monospace;
+            font-weight: bold;
         }
+
         .game-over {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: red;
+            color: #f00;
             font-size: 36px;
             text-align: center;
             display: none;
+            text-shadow: 4px 4px 0px #000;
+        }
+
+        #mode-select {
+            padding: 10px;
+            background: #000;
+            border: 2px solid #0f0;
+            color: #0f0;
+            font-family: 'Blocky', 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 72px;
+            color: #0f0;
+            text-shadow: 4px 4px 0px #000;
+            display: none;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px 2px 0px #000; }
+            25% { text-shadow: -2px 2px 0px #f00; }
+            50% { text-shadow: 2px -2px 0px #0f0; }
+            75% { text-shadow: -2px -2px 0px #00f; }
+            100% { text-shadow: 2px 2px 0px #000; }
+        }
+
+        .title {
+            font-size: 32px;
+            margin-bottom: 20px;
+            animation: glitch 2s infinite;
+            text-align: center;
+            letter-spacing: 4px;
+            font-weight: 900;
+            transform: scaleY(1.2);
         }
     </style>
 </head>
 <body>
     <div id="game-ui">
-        <div>Lives: <span id="lives">5</span></div>
-        <div>Current Word: <span id="current-word">start</span></div>
-        <input type="text" id="word-input" placeholder="Enter a word...">
+        <div class="title">WORD SPACE</div>
+        <select id="mode-select">
+            <option value="levenshtein">Mode: Edit Distance</option>
+            <option value="phonetic">Mode: Phonetic Pattern</option>
+        </select>
+        <div class="stats">
+            <div>Lives: <span id="lives">5</span></div>
+            <div>Word: <span id="current-word">start</span></div>
+        </div>
+        <input type="text" id="word-input" placeholder="Enter a word..." autocomplete="off">
     </div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <div id="gameOver" class="game-over">
         GAME OVER
         <br>
-        <button onclick="location.reload()">Play Again</button>
+        <button onclick="location.reload()" style="margin-top: 20px; font-family: 'Press Start 2P'; padding: 10px;">
+            RETRY
+        </button>
     </div>
+    <div id="countdown"></div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -65,6 +142,50 @@
         // Game constants
         const ASTEROID_SPAWN_RATE = 2;
         const ANGLE_CHANGE_MULTIPLIER = 5;
+
+        // Linguistic features
+        const LinguisticFeatures = {
+            // Levenshtein
+            levenshtein(word1, word2) {
+                const matrix = Array(word2.length + 1).fill().map(() => 
+                    Array(word1.length + 1).fill(0)
+                );
+                
+                for (let i = 0; i <= word1.length; i++) matrix[0][i] = i;
+                for (let j = 0; j <= word2.length; j++) matrix[j][0] = j;
+                
+                for (let j = 1; j <= word2.length; j++) {
+                    for (let i = 1; i <= word1.length; i++) {
+                        const cost = word1[i-1] === word2[j-1] ? 0 : 1;
+                        matrix[j][i] = Math.min(
+                            matrix[j-1][i] + 1,
+                            matrix[j][i-1] + 1,
+                            matrix[j-1][i-1] + cost
+                        );
+                    }
+                }
+                return matrix[word2.length][word1.length];
+            },
+
+            // Phonetic pattern similarity
+            getPhoneticPattern(word) {
+                const vowels = new Set(['a', 'e', 'i', 'o', 'u']);
+                return word.toLowerCase().split('')
+                    .map(char => vowels.has(char) ? 'V' : 'C')
+                    .join('');
+            },
+
+            phoneticSimilarity(word1, word2) {
+                const pattern1 = this.getPhoneticPattern(word1);
+                const pattern2 = this.getPhoneticPattern(word2);
+                const maxLength = Math.max(pattern1.length, pattern2.length);
+                let matchingChars = 0;
+                for(let i = 0; i < Math.min(pattern1.length, pattern2.length); i++) {
+                    if(pattern1[i] === pattern2[i]) matchingChars++;
+                }
+                return matchingChars / maxLength;
+            }
+        };
 
         class Ship {
             constructor(x, y) {
@@ -84,9 +205,8 @@
             }
 
             draw() {
-                ctx.beginPath();
-                ctx.strokeStyle = 'white';
-                ctx.fillStyle = 'white';
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
                 
                 const points = [
                     {
@@ -103,11 +223,12 @@
                     }
                 ];
 
+                ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
                 ctx.lineTo(points[1].x, points[1].y);
                 ctx.lineTo(points[2].x, points[2].y);
                 ctx.closePath();
-                ctx.fill();
+                ctx.stroke();
             }
 
             checkCollision(asteroid) {
@@ -163,11 +284,11 @@
             }
 
             draw() {
+                ctx.strokeStyle = '#0f0';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.strokeStyle = 'white';
-                ctx.fillStyle = 'white';
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.stroke();
             }
         }
 
@@ -175,10 +296,21 @@
         let asteroids = [];
         let asteroidSpawnTimer = 0;
         let gameOver = false;
+        let gameStarted = false;
 
         function getAngleBetweenWords(word1, word2) {
-            // placeholder till i make a lambda function or something to cal the semantic difference
-            return (Math.abs(word1.length - word2.length) * 45) % 360;
+            const mode = document.getElementById('mode-select').value;
+            let similarity;
+            
+            if (mode === 'levenshtein') {
+                const distance = LinguisticFeatures.levenshtein(word1, word2);
+                const maxLength = Math.max(word1.length, word2.length);
+                similarity = 1 - (distance / maxLength);
+            } else {
+                similarity = LinguisticFeatures.phoneticSimilarity(word1, word2);
+            }
+            
+            return (1 - similarity) * 360;
         }
 
         const wordInput = document.getElementById('word-input');
@@ -186,7 +318,7 @@
         const livesSpan = document.getElementById('lives');
         
         wordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !gameOver) {
+            if (e.key === 'Enter' && !gameOver && gameStarted) {
                 const newWord = wordInput.value.trim();
                 if (newWord) {
                     const angle = getAngleBetweenWords(
@@ -200,18 +332,40 @@
             }
         });
 
+        function startCountdown() {
+            const countdownEl = document.getElementById('countdown');
+            countdownEl.style.display = 'block';
+            let count = 3;
+            
+            const countdown = setInterval(() => {
+                countdownEl.textContent = count;
+                if (count <= 0) {
+                    clearInterval(countdown);
+                    countdownEl.style.display = 'none';
+                    gameStarted = true;
+                }
+                count--;
+            }, 1000);
+        }
+
+        startCountdown();
+
         function gameLoop() {
-            if (!gameOver) {
-                ctx.fillStyle = 'black';
-                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            if (gameStarted && !gameOver) {
                 ship.move();
+                
                 asteroidSpawnTimer++;
                 if (asteroidSpawnTimer >= FPS / ASTEROID_SPAWN_RATE) {
                     asteroids.push(new Asteroid());
                     asteroidSpawnTimer = 0;
                 }
+
                 asteroids = asteroids.filter(asteroid => {
                     asteroid.move();
+                    
                     if (ship.checkCollision(asteroid)) {
                         ship.lives--;
                         livesSpan.textContent = ship.lives;
@@ -221,11 +375,14 @@
                         }
                         return false;
                     }
+                    
                     return !asteroid.isOffscreen();
                 });
-                ship.draw();
-                asteroids.forEach(asteroid => asteroid.draw());
             }
+
+            ship.draw();
+            asteroids.forEach(asteroid => asteroid.draw());
+
             requestAnimationFrame(gameLoop);
         }
         gameLoop();
