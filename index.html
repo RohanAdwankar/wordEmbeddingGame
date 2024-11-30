@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Space Game</title>
     <style>
+        html {
+            transform: scale(0.9);
+            margin: 0 auto;
+            width: 90%;
+        }
+
         @font-face {
             font-family: 'Blocky';
             font-style: normal;
@@ -90,6 +96,20 @@
             margin-bottom: 10px;
         }
 
+        #timer {
+            font-size: 24px;
+            color: #0f0;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .high-score {
+            color: #0f0;
+            text-align: center;
+            margin: 5px 0;
+        }
+
         @keyframes glitch {
             0% { text-shadow: 2px 2px 0px #000; }
             25% { text-shadow: -2px 2px 0px #f00; }
@@ -116,6 +136,8 @@
             <option value="levenshtein">Mode: Edit Distance</option>
             <option value="phonetic">Mode: Phonetic Pattern</option>
         </select>
+        <div id="timer">Time: 0:00</div>
+        <div class="high-score">Best Time: <span id="highScore">0:00</span></div>
         <div class="stats">
             <div>Lives: <span id="lives">5</span></div>
             <div>Word: <span id="current-word">start</span></div>
@@ -297,6 +319,9 @@
         let asteroidSpawnTimer = 0;
         let gameOver = false;
         let gameStarted = false;
+        let startTime = 0;
+        let currentTime = 0;
+        let highScore = localStorage.getItem('wordSpaceHighScore') || 0;
 
         function getAngleBetweenWords(word1, word2) {
             const mode = document.getElementById('mode-select').value;
@@ -332,6 +357,20 @@
             }
         });
 
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            if (gameStarted && !gameOver) {
+                currentTime = Date.now() - startTime;
+                document.getElementById('timer').textContent = `Time: ${formatTime(currentTime)}`;
+            }
+        }
+
         function startCountdown() {
             const countdownEl = document.getElementById('countdown');
             countdownEl.style.display = 'block';
@@ -343,6 +382,8 @@
                     clearInterval(countdown);
                     countdownEl.style.display = 'none';
                     gameStarted = true;
+                    startTime = Date.now();
+                    document.getElementById('highScore').textContent = formatTime(highScore);
                 }
                 count--;
             }, 1000);
@@ -371,7 +412,14 @@
                         livesSpan.textContent = ship.lives;
                         if (ship.lives <= 0) {
                             gameOver = true;
-                            document.getElementById('gameOver').style.display = 'block';
+                            const finalTime = currentTime;
+                            if (finalTime > highScore) {
+                                highScore = finalTime;
+                                localStorage.setItem('wordSpaceHighScore', highScore);
+                            }
+                            const gameOverEl = document.getElementById('gameOver');
+                            gameOverEl.innerHTML = `GAME OVER<br>Time: ${formatTime(finalTime)}<br>Best: ${formatTime(highScore)}<br><button onclick="location.reload()" style="margin-top: 20px; font-family: 'Blocky', 'Courier New', monospace; padding: 10px;">RETRY</button>`;
+                            gameOverEl.style.display = 'block';
                         }
                         return false;
                     }
@@ -382,6 +430,7 @@
 
             ship.draw();
             asteroids.forEach(asteroid => asteroid.draw());
+            updateTimer();
 
             requestAnimationFrame(gameLoop);
         }
